@@ -1,2 +1,2 @@
 # dubbo.net
-dubbo client for dotnet
+dubbo library for dotnet
