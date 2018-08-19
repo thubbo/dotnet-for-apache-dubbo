@@ -8,15 +8,18 @@ using System.Runtime.Serialization.Json;
 using System.Runtime.Remoting.Proxies;
 using System.Runtime.Remoting.Activation;
 using System.Runtime.Remoting.Messaging;
+using System.Web.Script.Serialization;  
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
 
 using Castle.Core;  
-using Castle.DynamicProxy;  
+using Castle.DynamicProxy;
+
 
 namespace dubbo.dotnet.common
 {
+    /*
     [DataContract]
     public class RequestMessage
     {
@@ -45,43 +48,65 @@ namespace dubbo.dotnet.common
         [DataMember(Name = "result")]
         public T result { get; set; }
     }
+     */
+
+    public class RequestMessage
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; }
+
+        [JsonProperty("jsonrpc")]
+        public string Version { get; set; }
+
+        [JsonProperty("method")]
+        public string Method { get; set; }
+
+        [JsonProperty("params")]
+        public object[] Parameters { get; set; }
+    }
+
+    public class ResponseMessage<T>
+    {
+        public string id { get; set; }
+
+        public string jsonrpc { get; set; }
+
+        public T result { get; set; }
+    }
 
     public class Json
     {
-        public static string serialize(object o)
+        static JavaScriptSerializer jss = null;
+        public static JavaScriptSerializer getJavaScriptSerializer()
         {
-            DataContractJsonSerializer js = new DataContractJsonSerializer(o.GetType());
-            MemoryStream msObj = new MemoryStream();
-
-            js.WriteObject(msObj, o);
-            msObj.Position = 0;
-
-            StreamReader sr = new StreamReader(msObj, Encoding.UTF8);
-            string json = sr.ReadToEnd();
-            sr.Close();
-            msObj.Close();
-
-            return json;
+            if (jss == null)
+            {
+                jss = new JavaScriptSerializer();
+                jss.RegisterConverters(new[] { new JsonConverter() });
+            }
+            return jss;
         }
 
-        public static ResponseMessage<T> deserializeResponseMessage<T>(string json) where T : class
+        public static string serialize(object o)
         {
-            return deserialize(json, typeof(ResponseMessage<T>)) as ResponseMessage<T>;
+            return getJavaScriptSerializer().Serialize(o);
+        }
+
+        public static T deserializeResponseMessage<T>(string json) 
+        {
+            ResponseMessage<T> response = deserialize(json, typeof(ResponseMessage<T>)) as ResponseMessage<T>;
+            return response.result;
         }
 
 
         public static T deserialize<T>(string json) where T : class
         {
-            return deserialize(json,typeof(T)) as T;
+            return getJavaScriptSerializer().Deserialize<T>(json);
         }
 
         public static object deserialize(string json, Type type)
         {
-            var memoryStream = new MemoryStream(Encoding.Unicode.GetBytes(json));
-            var deseralizer = new DataContractJsonSerializer(type);
-            var model = deseralizer.ReadObject(memoryStream);
-            memoryStream.Close();
-            return model;
+            return getJavaScriptSerializer().Deserialize(json, type);
         }
     }
 
@@ -119,17 +144,10 @@ namespace dubbo.dotnet.common
                 Parameters = parameters
             };
 
-            string req = Json.serialize(message);
-            return HttpClient.post(url, req);
+            string request = Json.serialize(message);
+            Console.WriteLine("request==> " + request);
+            return HttpClient.post(url, request);
         }
-
-        public static T invoke<T>(string url, string method, object[] parameters) where T : class
-        {
-            string json = invokeJson(url, method, parameters);
-            ResponseMessage<T> response = Json.deserializeResponseMessage<T>(json);
-            return response.result;
-        } 
-
     }
 
     public class JsonrpcInterceptor : IInterceptor
@@ -168,9 +186,9 @@ namespace dubbo.dotnet.common
                 object respose = generic.Invoke(null, new object[] { json });
 
                 // ResponseMessage.result
-                object ret = respose.GetType().GetProperty("result").GetValue(respose);
+                // object ret = respose.GetType().GetProperty("result").GetValue(respose);
 
-                invocation.ReturnValue = ret;
+                invocation.ReturnValue = respose;
             }
         }
 
