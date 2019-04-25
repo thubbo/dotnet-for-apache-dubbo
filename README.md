@@ -1,4 +1,4 @@
-# dubbo-dotnet
+# dotnet for apache dubbo
 Dubbo library for dotnet.
 - support client api for dotnet applications to access Dubbo microservice in java platform.
 - support server mechanism to export microservices in dotnet application for applications in other platforms.
